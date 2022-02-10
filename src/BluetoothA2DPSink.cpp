@@ -15,6 +15,12 @@
 
 #include "BluetoothA2DPSink.h"
 
+#include "a2dp_sbc_constants.h"
+#include "a2dp_vendor_aptx_constants.h"
+#include "a2dp_vendor_aptx_ll_constants.h"
+#include "a2dp_vendor_aptx_hd_constants.h"
+#include "a2dp_vendor_ldac_constants.h"
+
 // to support static callback functions
 BluetoothA2DPSink* actual_bluetooth_a2dp_sink;
 
@@ -577,40 +583,152 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     audio_type = a2d->audio_cfg.mcc.type;
     ESP_LOGI(BT_AV_TAG, "a2dp audio_cfg_cb , codec type %d", a2d->audio_cfg.mcc.type);
 
+    if (!is_i2s_output) {
+        return;
+    }
+
+    uint32_t sample_rate = 0;
     i2s_bits_per_sample_t bits_per_sample = (i2s_bits_per_sample_t)0;
 
-    // determine sample rate
-    i2s_config.sample_rate = 16000;
-    char oct0 = a2d->audio_cfg.mcc.cie.sbc[0];
-    if (oct0 & (0x01 << 6)) {
-        i2s_config.sample_rate = 32000;
-    } else if (oct0 & (0x01 << 5)) {
-        i2s_config.sample_rate = 44100;
-    } else if (oct0 & (0x01 << 4)) {
-        i2s_config.sample_rate = 48000;
-    }
-    ESP_LOGI(BT_AV_TAG, "a2dp audio_cfg_cb , sample_rate %d", i2s_config.sample_rate );
-
-    bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-
-    // for now only SBC stream is supported
-    if (player_init == false && is_i2s_output && a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
-        ESP_LOGI(BT_AV_TAG, "configure audio player %x-%x-%x-%x\n",
-                a2d->audio_cfg.mcc.cie.sbc[0],
-                a2d->audio_cfg.mcc.cie.sbc[1],
-                a2d->audio_cfg.mcc.cie.sbc[2],
-                a2d->audio_cfg.mcc.cie.sbc[3]);
-        
-        // setup sample rate and channels
-        codec_bps = bits_per_sample;
-        i2s_config.bits_per_sample = dac_bps != 0 ? dac_bps : codec_bps;
-
-        if (i2s_set_clk(i2s_port, i2s_config.sample_rate, i2s_config.bits_per_sample, i2s_channels)!=ESP_OK){
-            ESP_LOGE(BT_AV_TAG, "i2s_set_clk failed with samplerate=%d", i2s_config.sample_rate);
+    if (a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
+        ESP_LOGI(BT_AV_TAG, "%s: configure SBC codec", __func__);
+        ESP_LOGI(BT_AV_TAG, "%s: configure audio player %x-%x-%x-%x",
+                __func__,
+                a2d->audio_cfg.mcc.cie.sbc[0],      // sample rate | channel mode
+                a2d->audio_cfg.mcc.cie.sbc[1],      // block len | sub bands | alloc method
+                a2d->audio_cfg.mcc.cie.sbc[2],      // max bit pool
+                a2d->audio_cfg.mcc.cie.sbc[3]);      // min bit pool
+        bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+        // determine sample rate
+        uint8_t oct = a2d->audio_cfg.mcc.cie.sbc[0];
+        if (oct & A2D_SBC_IE_SAMP_FREQ_16) {
+            sample_rate = 16000;
+        } else if (oct & A2D_SBC_IE_SAMP_FREQ_32) {
+            sample_rate = 32000;
+        } else if (oct & A2D_SBC_IE_SAMP_FREQ_44) {
+            sample_rate = 44100;
+        } else if (oct & A2D_SBC_IE_SAMP_FREQ_48) {
+            sample_rate = 48000;
         } else {
-            ESP_LOGI(BT_AV_TAG, "audio player configured, samplerate=%d", i2s_config.sample_rate);
-            player_init = true; //init finished
+            ESP_LOGE(BT_AV_TAG, "Invalid SBC sample rate config");
         }
+    } else if (a2d->audio_cfg.mcc.type == ESP_A2D_MCT_NON_A2DP) {
+        uint8_t *cie = (uint8_t*)&a2d->audio_cfg.mcc.cie;
+        ESP_LOGI(BT_AV_TAG, "%s: Configure audio player %x-%x-%x-%x-%x-%x",
+            __func__,
+            cie[0],     // vendor id
+            cie[1],
+            cie[2],
+            cie[3],
+            cie[4],     // codec id
+            cie[5]
+        );
+
+        uint32_t vendor_id = *((uint32_t*) cie);
+        uint16_t codec_id = *((uint16_t*) (cie + sizeof(uint32_t)));
+
+        if ((vendor_id == A2DP_APTX_VENDOR_ID &&
+             codec_id == A2DP_APTX_CODEC_ID_BLUETOOTH) ||
+            (vendor_id == A2DP_APTX_LL_VENDOR_ID &&
+              codec_id == A2DP_APTX_LL_CODEC_ID_BLUETOOTH))
+            {
+#if defined(CONFIG_BT_A2DP_APTX_DECODER)
+            if (vendor_id == A2DP_APTX_VENDOR_ID &&
+                codec_id == A2DP_APTX_CODEC_ID_BLUETOOTH)
+            {
+                ESP_LOGI(BT_AV_TAG, "%s: configure aptX codec", __func__);
+            } else if (vendor_id == A2DP_APTX_LL_VENDOR_ID &&
+                     codec_id == A2DP_APTX_LL_CODEC_ID_BLUETOOTH)
+            {
+                ESP_LOGI(BT_AV_TAG, "%s: configure aptX-LL codec", __func__);
+            }
+            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+
+            uint8_t oct0 = a2d->audio_cfg.mcc.cie.aptx[6]; // sample rate | channel Mode
+            if (oct0 & A2DP_APTX_SAMPLERATE_44100) {
+                sample_rate = 44100;
+            } else if (oct0 & A2DP_APTX_SAMPLERATE_48000) {
+                sample_rate = 48000;
+            } else {
+                ESP_LOGE(BT_AV_TAG, "%s: Invalid aptx sample rate config", __func__);
+            }
+#else
+            ESP_LOGE(BT_AV_TAG, "%s: aptX sink unsupported", __func__);
+#endif /* CONFIG_BT_A2DP_APTX_DECODER */
+        } else if (vendor_id == A2DP_APTX_HD_VENDOR_ID &&
+                   codec_id == A2DP_APTX_HD_CODEC_ID_BLUETOOTH)
+        {
+#if defined(CONFIG_BT_A2DP_APTX_DECODER)
+            ESP_LOGI(BT_AV_TAG, "%s: configure aptX-HD codec", __func__);
+            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+
+            sample_rate = 0;
+            uint8_t oct0 = a2d->audio_cfg.mcc.cie.aptx_hd[6]; // sample rate | channel Mode
+            if (oct0 & A2DP_APTX_SAMPLERATE_44100) {
+                sample_rate = 44100;
+            } else if (oct0 & A2DP_APTX_SAMPLERATE_48000) {
+                sample_rate = 48000;
+            } else {
+                ESP_LOGE(BT_AV_TAG, "%s: Invalid aptx-hd sample rate config", __func__);
+            }
+#else
+            ESP_LOGE(BT_AV_TAG, "%s: aptX-HD sink unsupported", __func__);
+#endif
+        } else if (vendor_id == A2DP_LDAC_VENDOR_ID &&
+                   codec_id == A2DP_LDAC_CODEC_ID)
+        {
+#if defined(CONFIG_BT_A2DP_LDAC_DECODER)
+            ESP_LOGI(BT_AV_TAG, "%s: configure LDAC codec", __func__);
+
+            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+
+            sample_rate = 0;
+            uint8_t oct0 = a2d->audio_cfg.mcc.cie.ldac[6]; // sample rate
+            if (oct0 & A2DP_LDAC_SAMPLING_FREQ_44100) {
+                sample_rate = 44100;
+            } else if (oct0 & A2DP_LDAC_SAMPLING_FREQ_48000) {
+                sample_rate = 48000;
+            } else if (oct0 & A2DP_LDAC_SAMPLING_FREQ_88200) {
+                sample_rate = 88200;
+            } else if (oct0 & A2DP_LDAC_SAMPLING_FREQ_96000) {
+                sample_rate = 96000;
+            } else {
+                ESP_LOGE(BT_AV_TAG, "%s: Invalid ldac sample rate config", __func__);
+            }
+#else
+            ESP_LOGE(BT_AV_TAG, "LDAC sink unsupported");
+#endif /* CONFIG_BT_A2DP_LDAC_DECODER */
+        } else {
+            ESP_LOGE(BT_AV_TAG, "%s: Unsupported vendor_id 0x%x, codec_id 0x%x",
+                     __func__, vendor_id, codec_id);
+        }
+    } else {
+        ESP_LOGE(BT_AV_TAG, "%s: Unsupported codec type 0x%x",
+                 __func__, a2d->audio_cfg.mcc.type);
+    }
+
+    if (!sample_rate) {
+        ESP_LOGE(BT_AV_TAG, "%s: sample_rate not set.", __func__);
+        return;
+    }
+
+    if (bits_per_sample == 0) {
+        ESP_LOGE(BT_AV_TAG, "%s: bits_per_sample not set.", __func__);
+        return;
+    }
+
+    // setup sample rate and channels
+    esp_err_t err;
+    i2s_config.sample_rate = sample_rate;
+    codec_bps = bits_per_sample;
+    i2s_config.bits_per_sample = (dac_bps != 0) ? dac_bps : codec_bps;
+    err = i2s_set_clk(i2s_port, i2s_config.sample_rate, i2s_config.bits_per_sample, i2s_channels);
+    if (err == ESP_OK) {
+        ESP_LOGI(BT_AV_TAG, "audio player configured, samplerate=%d, bits_per_sample=%d",
+                 i2s_config.sample_rate, i2s_config.bits_per_sample);
+        player_init = true; //init finished
+    } else {
+        ESP_LOGE(BT_AV_TAG, "i2s_set_clk failed with samplerate=%d", i2s_config.sample_rate);
     }
     if (sample_rate_callback!=nullptr){
         sample_rate_callback(i2s_config.sample_rate);
