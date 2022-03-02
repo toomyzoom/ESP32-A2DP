@@ -41,6 +41,9 @@
 #include "SoundData.h"
 #include "A2DPVolumeControl.h"
 #include "esp_task_wdt.h"
+#if ESP_IDF_VERSION_MAJOR > 4
+#include "soc/io_mux_reg.h"
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
 #include "esp32-hal-log.h"

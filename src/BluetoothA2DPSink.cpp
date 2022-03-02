@@ -28,7 +28,7 @@ BluetoothA2DPSink::BluetoothA2DPSink() {
         i2s_port = (i2s_port_t) 0;
 
         // setup default i2s config
-        i2s_config = {
+        i2s_config = i2s_config_t {
             .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX),
             .sample_rate = 44100,
             .bits_per_sample = (i2s_bits_per_sample_t)16,
@@ -42,7 +42,7 @@ BluetoothA2DPSink::BluetoothA2DPSink() {
         };
 
         // setup default pins
-        pin_config = {
+        pin_config = i2s_pin_config_t {
             .bck_io_num = 26,
             .ws_io_num = 25,
             .data_out_num = 22,
