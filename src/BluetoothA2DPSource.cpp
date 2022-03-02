@@ -64,7 +64,11 @@ extern "C" void ccall_bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_
     if (self_BluetoothA2DPSource) self_BluetoothA2DPSource->bt_app_rc_ct_cb(event, param);
 }
 
+#if ESP_IDF_VERSION_MAJOR > 4
+extern "C" void ccall_a2d_app_heart_beat(tmrTimerControl*arg) {
+#else
 extern "C" void ccall_a2d_app_heart_beat(void *arg) {
+#endif
     if(self_BluetoothA2DPSource) self_BluetoothA2DPSource->a2d_app_heart_beat(arg);
 }
 
@@ -566,8 +570,11 @@ void BluetoothA2DPSource::bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_par
     bt_app_work_dispatch(ccall_bt_app_av_sm_hdlr, event, param, sizeof(esp_a2d_cb_param_t), NULL);
 }
 
-
+#if ESP_IDF_VERSION_MAJOR > 4
+void BluetoothA2DPSource::a2d_app_heart_beat(tmrTimerControl*arg)
+#else
 void BluetoothA2DPSource::a2d_app_heart_beat(void *arg)
+#endif
 {
     bt_app_work_dispatch(ccall_bt_app_av_sm_hdlr, BT_APP_HEART_BEAT_EVT, NULL, 0, NULL);
 }
