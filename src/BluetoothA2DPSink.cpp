@@ -588,9 +588,6 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
         i2s_config.sample_rate = 48000;
     }
     ESP_LOGI(BT_AV_TAG, "a2dp audio_cfg_cb , sample_rate %d", i2s_config.sample_rate );
-    if (sample_rate_callback!=nullptr){
-        sample_rate_callback(i2s_config.sample_rate);
-    }
 
     // for now only SBC stream is supported
     if (player_init == false && is_i2s_output && a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
@@ -607,6 +604,9 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
             ESP_LOGI(BT_AV_TAG, "audio player configured, samplerate=%d", i2s_config.sample_rate);
             player_init = true; //init finished
         }
+    }
+    if (sample_rate_callback!=nullptr){
+        sample_rate_callback(i2s_config.sample_rate);
     }
 }
 
