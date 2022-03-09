@@ -615,6 +615,9 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     if (sample_rate_callback!=nullptr){
         sample_rate_callback(i2s_config.sample_rate);
     }
+    if (bps_callback!=nullptr){
+        bps_callback(codec_bps);
+    }
 }
 
 void BluetoothA2DPSink::handle_audio_state(uint16_t event, void *p_param){
