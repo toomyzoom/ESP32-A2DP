@@ -154,6 +154,7 @@ class BluetoothA2DPSource : public BluetoothA2DPCommon {
       ESP_LOGI(BT_AV_TAG, "set_volume: %d", volume);
       volume_value = volume;
       volume_control()->set_volume(volume);
+      volume_control()->set_enabled(true);
       is_volume_used = true;
     }
         
