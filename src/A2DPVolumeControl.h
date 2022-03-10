@@ -26,6 +26,30 @@
 
 class A2DPVolumeControl {
 
+    private:
+
+        template <class TYPE_T>
+        void update_data_volume(TYPE_T *data, uint32_t len)
+        {
+            const int32_t channels = 2;
+            int32_t frameCount = len / sizeof(TYPE_T);
+            for (int i = 0; i < frameCount; i += channels){
+                // if mono -> we provide the same output on both channels
+                int32_t pcmLeft = data[i];
+                int32_t pcmRight = data[i + 1];
+                if (mono_downmix) {
+                    pcmRight = pcmLeft = (pcmLeft + pcmRight) / 2;
+                }
+                // adjust the volume
+                if (is_volume_used) {
+                    pcmLeft = pcmLeft * volumeFactor / volumeFactorMax;
+                    pcmRight = pcmRight * volumeFactor / volumeFactorMax;
+                }
+                data[i] = (TYPE_T)pcmLeft;
+                data[i + 1] = (TYPE_T)pcmRight;
+            }
+        }
+
     protected:
         bool is_volume_used = false;
         bool mono_downmix = false;
@@ -37,24 +61,19 @@ class A2DPVolumeControl {
             volumeFactorMax = 0x1000;
         }
 
-        virtual void update_audio_data(Frame* data, uint16_t frameCount) {
-            if (data!=nullptr && frameCount>0 && ( mono_downmix || is_volume_used)) {
-                ESP_LOGD("VolumeControl", "update_audio_data");
-                for (int i=0;i<frameCount;i++){
-                    int32_t pcmLeft = data[i].channel1;
-                    int32_t pcmRight = data[i].channel2;
-                    // if mono -> we provide the same output on both channels
-                    if (mono_downmix) {
-                        pcmRight = pcmLeft = (pcmLeft + pcmRight) / 2;
-                    }
-                    // adjust the volume
-                    if (is_volume_used) {
-                        pcmLeft = pcmLeft * volumeFactor / volumeFactorMax;
-                        pcmRight = pcmRight * volumeFactor / volumeFactorMax;
-                    }
-                    data[i].channel1 = pcmLeft;
-                    data[i].channel2 = pcmRight;
-                }
+        virtual void update_audio_data(uint8_t* data, uint32_t len, uint32_t bps)
+        {
+            if (data == nullptr || len == 0 || (!mono_downmix && !is_volume_used)) {
+                return;
+            }
+
+            ESP_LOGD("VolumeControl", "update_audio_data");
+            if (bps == 32) {
+                update_data_volume((int32_t*)data, len);
+            } else if (bps == 16) {
+                update_data_volume((int16_t*)data, len);
+            } else {
+                ESP_LOGE("VolumeControl", "Unsupported bits per sample %u", bps);
             }
         }
 
@@ -137,6 +156,6 @@ class A2DPLinearVolumeControl : public A2DPVolumeControl {
  */
 class A2DPNoVolumeControl : public A2DPVolumeControl {
     public:
-        virtual void update_audio_data(Frame* data, uint16_t frameCount) {
+        virtual void update_audio_data(uint8_t* data, uint16_t len, uint32_t bps) {
         }
 };

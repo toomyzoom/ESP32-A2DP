@@ -931,7 +931,8 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
     ESP_LOGD(BT_AV_TAG, "%s", __func__);
 
     // adjust the volume
-    volume_control()->update_audio_data((Frame*)data, len/4);
+    volume_control()->update_audio_data((uint8_t*)data, len,
+                                        i2s_config.bits_per_sample);
 
     // make data available via callback
     if (stream_reader!=nullptr){
