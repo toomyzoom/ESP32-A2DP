@@ -572,6 +572,8 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     audio_type = a2d->audio_cfg.mcc.type;
     ESP_LOGI(BT_AV_TAG, "a2dp audio_cfg_cb , codec type %d", a2d->audio_cfg.mcc.type);
 
+    i2s_bits_per_sample_t bits_per_sample = (i2s_bits_per_sample_t)0;
+
     // determine sample rate
     i2s_config.sample_rate = 16000;
     char oct0 = a2d->audio_cfg.mcc.cie.sbc[0];
@@ -584,6 +586,8 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     }
     ESP_LOGI(BT_AV_TAG, "a2dp audio_cfg_cb , sample_rate %d", i2s_config.sample_rate );
 
+    bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+
     // for now only SBC stream is supported
     if (player_init == false && is_i2s_output && a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
         ESP_LOGI(BT_AV_TAG, "configure audio player %x-%x-%x-%x\n",
@@ -593,6 +597,9 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
                 a2d->audio_cfg.mcc.cie.sbc[3]);
         
         // setup sample rate and channels
+        codec_bps = bits_per_sample;
+        i2s_config.bits_per_sample = dac_bps != 0 ? dac_bps : codec_bps;
+
         if (i2s_set_clk(i2s_port, i2s_config.sample_rate, i2s_config.bits_per_sample, i2s_channels)!=ESP_OK){
             ESP_LOGE(BT_AV_TAG, "i2s_set_clk failed with samplerate=%d", i2s_config.sample_rate);
         } else {
@@ -937,8 +944,7 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
     }
 
     // adjust the volume
-    volume_control()->update_audio_data((uint8_t*)data, len,
-                                        i2s_config.bits_per_sample);
+    volume_control()->update_audio_data((uint8_t*)data, len, codec_bps);
 
     // swap left and right channels
     if (swap_left_right){
@@ -968,22 +974,17 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
             }
         }    
 
+        esp_err_t err;
         size_t i2s_bytes_written;
-        if (i2s_config.bits_per_sample==I2S_BITS_PER_SAMPLE_16BIT){
-            // standard logic with 16 bits
-            if (i2s_write(i2s_port,(void*) data, len, &i2s_bytes_written, portMAX_DELAY)!=ESP_OK){
-                ESP_LOGE(BT_AV_TAG, "i2s_write has failed");    
-            }
-            //ESP_LOGI(BT_AV_TAG, "i2s_write: %u bytes with range %d - %d avg: %d", i2s_bytes_written, minV, maxV, avg);
+        if (dac_bps > codec_bps){
+            // expand source audio bps to match external dac bps
+            err = i2s_write_expand(i2s_port,(void*) data, len, codec_bps, dac_bps,
+                                   &i2s_bytes_written, portMAX_DELAY);
         } else {
-            if (i2s_config.bits_per_sample>16){
-                // expand e.g to 32 bit for dacs which do not support 16 bits
-                if (i2s_write_expand(i2s_port,(void*) data, len, I2S_BITS_PER_SAMPLE_16BIT, i2s_config.bits_per_sample, &i2s_bytes_written, portMAX_DELAY) != ESP_OK){
-                    ESP_LOGE(BT_AV_TAG, "i2s_write has failed");    
-                }
-            } else {
-                ESP_LOGE(BT_AV_TAG, "invalid bits_per_sample: %d", i2s_config.bits_per_sample);    
-            }
+            err = i2s_write(i2s_port,(void*) data, len, &i2s_bytes_written, portMAX_DELAY);
+        }
+        if (err != ESP_OK){
+            ESP_LOGE(BT_AV_TAG, "i2s_write has failed");
         }
 
         if (i2s_bytes_written<len){

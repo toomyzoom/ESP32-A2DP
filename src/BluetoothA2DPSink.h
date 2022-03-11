@@ -175,7 +175,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
         volume_control()->set_mono_downmix(enabled);
     }
     /// Defines the bits per sample for output (if > 16 output will be expanded)
-    virtual void set_bits_per_sample(int bps) { i2s_config.bits_per_sample = (i2s_bits_per_sample_t) bps; }
+    virtual void set_bits_per_sample(int bps) { dac_bps = (i2s_bits_per_sample_t) bps; }
     
     /// Provides the actually set data rate (in samples per second)
     virtual uint16_t sample_rate();
@@ -233,6 +233,8 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     bool player_init = false;
     i2s_channel_t i2s_channels = I2S_CHANNEL_STEREO;
     i2s_port_t i2s_port = I2S_NUM_0; 
+    i2s_bits_per_sample_t codec_bps = (i2s_bits_per_sample_t)0;
+    i2s_bits_per_sample_t dac_bps = (i2s_bits_per_sample_t)0;
     int connection_rety_count = 0;
     esp_bd_addr_t peer_bd_addr = {0};
     static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
