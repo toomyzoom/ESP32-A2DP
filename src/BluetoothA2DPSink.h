@@ -15,6 +15,7 @@
 
 #pragma once
 #include "BluetoothA2DPCommon.h"
+#include "SwapChannel.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -209,6 +210,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     /// swaps the left and right channel
     virtual void set_swap_lr_channels(bool swap){
         swap_left_right = swap;
+        swapChannel.set_enabled(swap);
     }
 
     /// Defines the number of times that the system tries to automatically reconnect to the last system
@@ -262,6 +264,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     int try_reconnect_max_count = AUTOCONNECT_TRY_NUM;
     bool reconnect_on_normal_disconnect = false;
     bool end_in_progress = false;
+    SwapChannel swapChannel;
 
 #ifdef ESP_IDF_4
     esp_avrc_rn_evt_cap_mask_t s_avrc_peer_rn_cap;
