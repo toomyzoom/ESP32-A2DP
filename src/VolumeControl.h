@@ -33,20 +33,22 @@ class VolumeControl {
         {
             const int32_t channels = 2;
             int32_t frameCount = len / sizeof(TYPE_T);
+            float vf = volumeFactor;
+            float vfMax = volumeFactorMax;
             for (int i = 0; i < frameCount; i += channels){
                 // if mono -> we provide the same output on both channels
-                int32_t pcmLeft = data[i];
-                int32_t pcmRight = data[i + 1];
+                float pcmLeft = data[i];
+                float pcmRight = data[i + 1];
                 if (mono_downmix) {
-                    pcmRight = pcmLeft = (pcmLeft + pcmRight) / 2;
+                    pcmRight = pcmLeft = (pcmLeft + pcmRight) / 2.0f;
                 }
                 // adjust the volume
                 if (is_volume_used) {
-                    pcmLeft = pcmLeft * volumeFactor / volumeFactorMax;
-                    pcmRight = pcmRight * volumeFactor / volumeFactorMax;
+                    pcmLeft = pcmLeft * vf / vfMax;
+                    pcmRight = pcmRight * vf / vfMax;
                 }
-                data[i] = (TYPE_T)pcmLeft;
-                data[i + 1] = (TYPE_T)pcmRight;
+                data[i] = (TYPE_T)round(pcmLeft);
+                data[i + 1] = (TYPE_T)round(pcmRight);
             }
         }
 
