@@ -956,15 +956,7 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
     volume_control()->update_audio_data((uint8_t*)data, len, codec_bps);
 
     // swap left and right channels
-    if (swap_left_right){
-        Frame *frame = (Frame*)data;
-        for (int i=0; i<len/4; i++) {
-            int16_t temp = frame[i].channel1;
-            frame[i].channel1 = frame[i].channel2;
-            frame[i].channel2 = temp;
-        }
-    }
-
+    swapChannel.update_audio_data((uint8_t*)data, len, codec_bps);
 
     if (is_i2s_output) {
         // special case for internal DAC output, the incomming PCM buffer needs 
