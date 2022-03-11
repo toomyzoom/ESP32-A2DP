@@ -955,18 +955,8 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
     if (is_i2s_output) {
         // special case for internal DAC output, the incomming PCM buffer needs 
         // to be converted from signed 16bit to unsigned
-        int16_t* data16 = (int16_t*) data;
-
         if (this->i2s_config.mode & I2S_MODE_DAC_BUILT_IN) {
-    
-            //HACK: this is here to remove the const restriction to replace the data in place as per
-            //https://github.com/espressif/esp-idf/blob/178b122/components/bt/host/bluedroid/api/include/api/esp_a2dp_api.h
-            //the buffer is anyway static block of memory possibly overwritten by next incomming data.
-
-            for (int i=0; i<len/2; i++) {
-                int16_t sample = data[i*2] | data[i*2+1]<<8;
-                data16[i]= sample + 0x8000;
-            }
+            sToU.update_audio_data((uint8_t*)data, len, codec_bps);
         }    
 
         esp_err_t err;

@@ -16,6 +16,7 @@
 #pragma once
 #include "BluetoothA2DPCommon.h"
 #include "SwapChannel.h"
+#include "SignedToUnsigned.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,6 +266,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     bool reconnect_on_normal_disconnect = false;
     bool end_in_progress = false;
     SwapChannel swapChannel;
+    SignedToUnsigned sToU;
 
 #ifdef ESP_IDF_4
     esp_avrc_rn_evt_cap_mask_t s_avrc_peer_rn_cap;
