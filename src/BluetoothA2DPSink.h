@@ -119,7 +119,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     }
 
     /// Defines the method which will be called with the sample rate is updated
-    virtual void set_sample_rate_callback(void (*callback)(uint16_t rate)) {
+    virtual void set_sample_rate_callback(void (*callback)(uint32_t rate)) {
       this->sample_rate_callback = callback;
     }
 
@@ -252,7 +252,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     void (*stream_reader)(const uint8_t*, uint32_t) = nullptr;
     void (*avrc_metadata_callback)(uint8_t, const uint8_t*) = nullptr;
     bool (*address_validator)(esp_bd_addr_t remote_bda) = nullptr;
-    void (*sample_rate_callback)(uint16_t rate)=nullptr;
+    void (*sample_rate_callback)(uint32_t rate)=nullptr;
     bool swap_left_right = false;
     int try_reconnect_max_count = AUTOCONNECT_TRY_NUM;
     bool reconnect_on_normal_disconnect = false;
