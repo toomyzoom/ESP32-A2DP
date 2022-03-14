@@ -632,7 +632,7 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
             {
                 ESP_LOGI(BT_AV_TAG, "%s: configure aptX-LL codec", __func__);
             }
-            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+            bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
 
             uint8_t oct0 = a2d->audio_cfg.mcc.cie.aptx[6]; // sample rate | channel Mode
             if (oct0 & A2DP_APTX_SAMPLERATE_44100) {
@@ -650,7 +650,7 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
         {
 #if defined(CONFIG_BT_A2DP_APTX_DECODER)
             ESP_LOGI(BT_AV_TAG, "%s: configure aptX-HD codec", __func__);
-            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+            bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
 
             sample_rate = 0;
             uint8_t oct0 = a2d->audio_cfg.mcc.cie.aptx_hd[6]; // sample rate | channel Mode
@@ -670,7 +670,7 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
 #if defined(CONFIG_BT_A2DP_LDAC_DECODER)
             ESP_LOGI(BT_AV_TAG, "%s: configure LDAC codec", __func__);
 
-            bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+            bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
 
             sample_rate = 0;
             uint8_t oct0 = a2d->audio_cfg.mcc.cie.ldac[6]; // sample rate
