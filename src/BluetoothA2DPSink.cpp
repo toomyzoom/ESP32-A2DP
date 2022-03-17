@@ -822,6 +822,14 @@ void BluetoothA2DPSink::handle_connection_state(uint16_t event, void *p_param){
             (*bt_connected)();
         }                
         
+
+        if (!peer_volume.contains(peer_bd_addr)) {
+            volume_control()->set_enabled(false);
+        } else {
+            volume_control()->set_volume(peer_volume.get(peer_bd_addr));
+            volume_control()->set_enabled(true);
+        }
+
         set_scan_mode_connectable(false);   
         connection_rety_count = 0;
         if (is_i2s_output) {
@@ -1154,12 +1162,11 @@ void BluetoothA2DPSink::set_volume(uint8_t volume)
   if (volume > 0x7f) {
       volume = 0x7f;
   } 
-  s_volume = volume & 0x7f;
-  volume_control()->set_volume(s_volume);
+  volume_control()->set_volume(volume);
   volume_control()->set_enabled(true);
 
 #ifdef ESP_IDF_4
-  volume_set_by_local_host(s_volume);
+  volume_set_by_local_host(volume);
 #endif
 
 }
@@ -1167,7 +1174,7 @@ void BluetoothA2DPSink::set_volume(uint8_t volume)
 int BluetoothA2DPSink::get_volume()
 {
   // ESP_LOGI(BT_AV_TAG, "get_volume %d", s_volume);
-  return s_volume;
+  return peer_volume.get(peer_bd_addr);
 }
 
 void BluetoothA2DPSink::activate_pin_code(bool active){
@@ -1289,14 +1296,14 @@ void BluetoothA2DPSink::volume_set_by_controller(uint8_t volume)
     ESP_LOGI(BT_AV_TAG, "Volume is set by remote controller to %d", (uint32_t)volume * 100 / 0x7f);
 
     _lock_acquire(&s_volume_lock);
-    s_volume = volume;
+    peer_volume[peer_bd_addr] = volume;
     _lock_release(&s_volume_lock);
     
-    volume_control()->set_volume(s_volume);
+    volume_control()->set_volume(volume);
     volume_control()->set_enabled(true);
 
     if (bt_volumechange!=nullptr){
-        (*bt_volumechange)(s_volume);
+        (*bt_volumechange)(volume);
     }    
 }
 
@@ -1305,12 +1312,12 @@ void BluetoothA2DPSink::volume_set_by_local_host(uint8_t volume)
     ESP_LOGI(BT_AV_TAG, "Volume is set locally to: %d", (uint32_t)volume * 100 / 0x7f);
 
     _lock_acquire(&s_volume_lock);
-    s_volume = volume;
+    peer_volume[peer_bd_addr] = volume;
     _lock_release(&s_volume_lock);
 
     if (s_volume_notify) {
         esp_avrc_rn_param_t rn_param;
-        rn_param.volume = s_volume;
+        rn_param.volume = volume;
         esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_CHANGED, &rn_param);
     } 
 }
@@ -1357,7 +1364,7 @@ void BluetoothA2DPSink::av_hdl_avrc_tg_evt(uint16_t event, void *p_param)
             ESP_LOGI(BT_AV_TAG, "AVRC Volume Changes Supported");
             s_volume_notify = true;
             esp_avrc_rn_param_t rn_param;
-            rn_param.volume = s_volume;
+            rn_param.volume = peer_volume.get(peer_bd_addr);
             esp_avrc_tg_send_rn_rsp(ESP_AVRC_RN_VOLUME_CHANGE, ESP_AVRC_RN_RSP_INTERIM, &rn_param);            
         } else {
             ESP_LOGW(BT_AV_TAG, "AVRC Volume Changes NOT Supported");
