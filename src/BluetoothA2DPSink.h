@@ -17,6 +17,7 @@
 #include "BluetoothA2DPCommon.h"
 #include "SwapChannel.h"
 #include "SignedToUnsigned.h"
+#include "PeerVolume.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -244,7 +245,7 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     esp_bd_addr_t peer_bd_addr = {0};
     static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
     _lock_t s_volume_lock;
-    uint8_t s_volume = 0;
+    PeerVolume peer_volume;
     bool s_volume_notify;
     int pin_code_int = 0;
     PinCodeRequest pin_code_request = Undefined;
