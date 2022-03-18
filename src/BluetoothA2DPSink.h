@@ -222,6 +222,9 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
         try_reconnect_max_count = count;
     }
     
+    virtual void set_default_volume(uint8_t default_volume){
+        peer_volume.set_default_volume(default_volume);
+    }
 
  #ifdef ESP_IDF_4
     /// Get the name of the connected source device
