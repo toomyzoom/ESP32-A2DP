@@ -79,9 +79,6 @@ void BluetoothA2DPSink::end(bool release_memory) {
         if (i2s_driver_uninstall(i2s_port) != ESP_OK){
             ESP_LOGE(BT_AV_TAG,"Failed to uninstall i2s");
         }
-        else {
-            player_init = false;
-        }
     }
     log_free_heap();
 }
@@ -196,8 +193,6 @@ void BluetoothA2DPSink::init_i2s() {
         // setup i2s
         if (i2s_driver_install(i2s_port, &i2s_config, 0, NULL) != ESP_OK) {
             ESP_LOGE(BT_AV_TAG,"i2s_driver_install failed");
-        } else {
-            player_init = false; //reset player
         }
 
         // pins are only relevant when music is not sent to internal DAC
@@ -721,7 +716,6 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     if (err == ESP_OK) {
         ESP_LOGI(BT_AV_TAG, "audio player configured, samplerate=%d, bits_per_sample=%d",
                  i2s_config.sample_rate, i2s_config.bits_per_sample);
-        player_init = true; //init finished
     } else {
         ESP_LOGE(BT_AV_TAG, "i2s_set_clk failed with samplerate=%d", i2s_config.sample_rate);
     }

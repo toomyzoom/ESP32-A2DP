@@ -237,7 +237,6 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     //esp_a2d_audio_state_t m_audio_state = ESP_A2D_AUDIO_STATE_STOPPED;
     esp_a2d_mct_t audio_type;
     bool is_i2s_output = true;
-    bool player_init = false;
     i2s_channel_t i2s_channels = I2S_CHANNEL_STEREO;
     i2s_port_t i2s_port = I2S_NUM_0; 
     i2s_bits_per_sample_t codec_bps = (i2s_bits_per_sample_t)0;
