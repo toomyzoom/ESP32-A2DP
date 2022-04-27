@@ -747,8 +747,8 @@ void BluetoothA2DPSink::handle_audio_state(uint16_t event, void *p_param){
             }
         } else if ( ESP_A2D_AUDIO_STATE_REMOTE_SUSPEND == a2d->audio_stat.state || ESP_A2D_AUDIO_STATE_STOPPED == a2d->audio_stat.state ) { 
             ESP_LOGW(BT_AV_TAG,"i2s_stop");
-            i2s_stop(i2s_port);
             i2s_zero_dma_buffer(i2s_port);
+            i2s_stop(i2s_port);
         }
     }
 }
@@ -783,8 +783,8 @@ void BluetoothA2DPSink::handle_connection_state(uint16_t event, void *p_param){
         
         if (is_i2s_output) {
             ESP_LOGI(BT_AV_TAG, "i2s_stop");
-            i2s_stop(i2s_port);
             i2s_zero_dma_buffer(i2s_port);
+            i2s_stop(i2s_port);
         }
         
         if (!end_in_progress) {
