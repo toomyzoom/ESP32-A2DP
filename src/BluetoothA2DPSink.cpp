@@ -76,6 +76,7 @@ void BluetoothA2DPSink::end(bool release_memory) {
     // stop I2S
     if (is_i2s_output){
         ESP_LOGI(BT_AV_TAG,"uninstall i2s");
+        vSemaphoreDelete(i2s_lock);
         if (i2s_driver_uninstall(i2s_port) != ESP_OK){
             ESP_LOGE(BT_AV_TAG,"Failed to uninstall i2s");
         }
@@ -190,6 +191,13 @@ void BluetoothA2DPSink::init_i2s() {
     ESP_LOGI(BT_AV_TAG,"init_i2s");
     if (is_i2s_output){
         ESP_LOGI(BT_AV_TAG,"init_i2s is_i2s_output");
+
+        i2s_lock = xSemaphoreCreateMutex();
+        if(i2s_lock == NULL) {
+            ESP_LOGE(BT_AV_TAG, "%s: Failed to create i2s_lock", __func__);
+            return;
+        }
+
         // setup i2s
         if (i2s_driver_install(i2s_port, &i2s_config, 0, NULL) != ESP_OK) {
             ESP_LOGE(BT_AV_TAG,"i2s_driver_install failed");
@@ -213,6 +221,7 @@ void BluetoothA2DPSink::init_i2s() {
         // i2s_driver_install starts i2s.
         // Stop it now. Let bluetooth start it when audio playback starts.
         i2s_stop(i2s_port);
+        i2s_started = false;
     }
 }
 
@@ -717,13 +726,22 @@ void BluetoothA2DPSink::handle_audio_cfg(uint16_t event, void *p_param) {
     i2s_config.sample_rate = sample_rate;
     codec_bps = bits_per_sample;
     i2s_config.bits_per_sample = (dac_bps != 0) ? dac_bps : codec_bps;
+    xSemaphoreTake(i2s_lock, portMAX_DELAY);
+    if (!i2s_started) {
+        // i2s_set_clk stops i2s, sets clk, then starts i2s.
+        // start it now if it isn't already
+        i2s_start(i2s_port);
+    }
     err = i2s_set_clk(i2s_port, i2s_config.sample_rate, i2s_config.bits_per_sample, i2s_channels);
     if (err == ESP_OK) {
+        i2s_started = true;
         ESP_LOGI(BT_AV_TAG, "audio player configured, samplerate=%d, bits_per_sample=%d",
                  i2s_config.sample_rate, i2s_config.bits_per_sample);
     } else {
+        i2s_started = false;
         ESP_LOGE(BT_AV_TAG, "i2s_set_clk failed with samplerate=%d", i2s_config.sample_rate);
     }
+    xSemaphoreGive(i2s_lock);
     if (sample_rate_callback!=nullptr){
         sample_rate_callback(i2s_config.sample_rate);
     }
@@ -746,13 +764,24 @@ void BluetoothA2DPSink::handle_audio_state(uint16_t event, void *p_param){
     if (is_i2s_output){
         if (ESP_A2D_AUDIO_STATE_STARTED == a2d->audio_stat.state) { 
             ESP_LOGI(BT_AV_TAG,"i2s_start");
-            if (i2s_start(i2s_port)!=ESP_OK){
-                ESP_LOGE(BT_AV_TAG, "i2s_start");
+            xSemaphoreTake(i2s_lock, portMAX_DELAY);
+            if (!i2s_started){
+                if (i2s_start(i2s_port)!=ESP_OK) {
+                    ESP_LOGE(BT_AV_TAG, "i2s_start");
+                } else {
+                    i2s_started = true;
+                }
             }
+            xSemaphoreGive(i2s_lock);
         } else if ( ESP_A2D_AUDIO_STATE_REMOTE_SUSPEND == a2d->audio_stat.state || ESP_A2D_AUDIO_STATE_STOPPED == a2d->audio_stat.state ) { 
             ESP_LOGW(BT_AV_TAG,"i2s_stop");
-            i2s_zero_dma_buffer(i2s_port);
-            i2s_stop(i2s_port);
+            xSemaphoreTake(i2s_lock, portMAX_DELAY);
+            if (i2s_started) {
+                i2s_zero_dma_buffer(i2s_port);
+                i2s_stop(i2s_port);
+                i2s_started = false;
+            }
+            xSemaphoreGive(i2s_lock);
         }
     }
 }
@@ -786,9 +815,14 @@ void BluetoothA2DPSink::handle_connection_state(uint16_t event, void *p_param){
         }    
         
         if (is_i2s_output) {
-            ESP_LOGI(BT_AV_TAG, "i2s_stop");
-            i2s_zero_dma_buffer(i2s_port);
-            i2s_stop(i2s_port);
+            xSemaphoreTake(i2s_lock, portMAX_DELAY);
+            if (i2s_started) {
+                ESP_LOGI(BT_AV_TAG, "i2s_stop");
+                i2s_zero_dma_buffer(i2s_port);
+                i2s_stop(i2s_port);
+                i2s_started = false;
+            }
+            xSemaphoreGive(i2s_lock);
         }
         
         if (!end_in_progress) {
@@ -839,9 +873,13 @@ void BluetoothA2DPSink::handle_connection_state(uint16_t event, void *p_param){
         connection_rety_count = 0;
         if (is_i2s_output) {
             ESP_LOGI(BT_AV_TAG,"i2s_start");
+            xSemaphoreTake(i2s_lock, portMAX_DELAY);
             if (i2s_start(i2s_port)!=ESP_OK){
                 ESP_LOGE(BT_AV_TAG, "i2s_start");
+            } else {
+                i2s_started = true;
             }
+            xSemaphoreGive(i2s_lock);
         }
         // record current connection
         if (is_auto_reconnect && is_valid) {
@@ -1086,16 +1124,20 @@ void BluetoothA2DPSink::audio_data_callback(const uint8_t *data, uint32_t len) {
 
         esp_err_t err;
         size_t i2s_bytes_written;
-        if (dac_bps > codec_bps){
-            // expand source audio bps to match external dac bps
-            err = i2s_write_expand(i2s_port,(void*) data, len, codec_bps, dac_bps,
-                                   &i2s_bytes_written, portMAX_DELAY);
-        } else {
-            err = i2s_write(i2s_port,(void*) data, len, &i2s_bytes_written, portMAX_DELAY);
+        xSemaphoreTake(i2s_lock, portMAX_DELAY);
+        if (i2s_started) {
+            if (dac_bps > codec_bps){
+                // expand source audio bps to match external dac bps
+                err = i2s_write_expand(i2s_port,(void*) data, len, codec_bps, dac_bps,
+                                       &i2s_bytes_written, portMAX_DELAY);
+            } else {
+                err = i2s_write(i2s_port,(void*) data, len, &i2s_bytes_written, portMAX_DELAY);
+            }
+            if (err != ESP_OK){
+                ESP_LOGE(BT_AV_TAG, "i2s_write has failed");
+            }
         }
-        if (err != ESP_OK){
-            ESP_LOGE(BT_AV_TAG, "i2s_write has failed");
-        }
+        xSemaphoreGive(i2s_lock);
 
         if (i2s_bytes_written<len){
             ESP_LOGE(BT_AV_TAG, "Timeout: not all bytes were written to I2S");

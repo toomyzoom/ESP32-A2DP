@@ -245,6 +245,8 @@ class BluetoothA2DPSink : public BluetoothA2DPCommon {
     i2s_port_t i2s_port = I2S_NUM_0; 
     i2s_bits_per_sample_t codec_bps = (i2s_bits_per_sample_t)0;
     i2s_bits_per_sample_t dac_bps = (i2s_bits_per_sample_t)0;
+    bool i2s_started = false;
+    SemaphoreHandle_t i2s_lock;
     int connection_rety_count = 0;
     esp_bd_addr_t peer_bd_addr = {0};
     static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
