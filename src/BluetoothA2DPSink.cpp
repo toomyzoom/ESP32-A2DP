@@ -209,6 +209,10 @@ void BluetoothA2DPSink::init_i2s() {
                 ESP_LOGE(BT_AV_TAG,"i2s_set_pin failed");
             }
         }
+
+        // i2s_driver_install starts i2s.
+        // Stop it now. Let bluetooth start it when audio playback starts.
+        i2s_stop(i2s_port);
     }
 }
 
